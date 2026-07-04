@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "puppeteer": "^25.2.1"
+  },
+  "allowScripts": {
+    "puppeteer@25.2.1": true
+  }
+}
