@@ -1,0 +1,125 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
+  }
+
+  body {
+    @apply bg-night text-ink font-sans antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection {
+    background: #7c6cff;
+    color: #0a0a0f;
+  }
+
+  /* Accessible focus ring on every interactive element */
+  :focus-visible {
+    outline: 2px solid #7c6cff;
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #0a0a0f;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #222230;
+    border-radius: 8px;
+    border: 2px solid #0a0a0f;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #2e2e40;
+  }
+}
+
+@layer utilities {
+  /* Film-grain overlay: apply to a positioned container via ::after */
+  .grain::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.5;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.28'/%3E%3C/svg%3E");
+  }
+
+  /* Layered radial glow fields for hero / section backdrops */
+  .glow-hero {
+    background:
+      radial-gradient(1200px 600px at 50% -10%, rgba(124, 108, 255, 0.22), transparent 60%),
+      radial-gradient(800px 400px at 85% 10%, rgba(88, 71, 232, 0.12), transparent 55%),
+      radial-gradient(600px 500px at 10% 25%, rgba(146, 132, 255, 0.08), transparent 50%);
+  }
+
+  .glow-footer {
+    background:
+      radial-gradient(900px 480px at 50% 115%, rgba(124, 108, 255, 0.18), transparent 60%);
+  }
+
+  /* Glass card surface */
+  .glass {
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .glass-strong {
+    background: rgba(26, 26, 36, 0.72);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  /* Iris keyline text */
+  .text-gradient-iris {
+    background: linear-gradient(120deg, #b7adff 0%, #7c6cff 45%, #9284ff 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    /* keep italic serif overhang inside the clipped background box */
+    padding-right: 0.08em;
+    margin-right: -0.02em;
+  }
+
+  /* Hairline divider that fades at the edges */
+  .hairline {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1) 20%, rgba(255, 255, 255, 0.1) 80%, transparent);
+  }
+
+  /* Skeleton shimmer block */
+  .skeleton {
+    position: relative;
+    overflow: hidden;
+    background: #1a1a24;
+  }
+  .skeleton::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent, rgba(124, 108, 255, 0.08), transparent);
+    animation: shimmer 1.6s ease-in-out infinite;
+  }
+
+  /* Dotted grid backdrop for app pages */
+  .dotgrid {
+    background-image: radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+}
