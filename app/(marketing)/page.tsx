@@ -1,4 +1,4 @@
-import { Hero } from "@/components/marketing/Hero";
+import { StudioShowcase } from "@/components/marketing/StudioShowcase";
 import { Features } from "@/components/marketing/Features";
 import { HowItWorks } from "@/components/marketing/HowItWorks";
 import { PricingTiers } from "@/components/marketing/PricingTiers";
@@ -17,7 +17,7 @@ const stats = [
 export default function LandingPage() {
   return (
     <>
-      <Hero />
+      <StudioShowcase showHeader={false} />
 
       {/* stats strip */}
       <section className="relative border-y border-line bg-surface/60">

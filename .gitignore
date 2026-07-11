@@ -25,3 +25,10 @@ next-env.d.ts
 
 # screenshots
 /temporary screenshots/
+
+# design-sync (machine state, regenerated)
+.ds-sync/
+ds-bundle/
+.design-sync/.cache/
+.design-sync/learnings/
+.design-sync/node_modules

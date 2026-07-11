@@ -1,0 +1,14 @@
+{
+  // design-sync only: resolved by the converter's tsconfig-paths plugin.
+  // Maps the app's @/ alias and shims Next.js runtime modules for the
+  // browser bundle. Not used by the Next.js build.
+  "compilerOptions": {
+    "baseUrl": "..",
+    "paths": {
+      "@/*": ["./*"],
+      "next/link": ["./.design-sync/shims/next-link.tsx"],
+      "next/image": ["./.design-sync/shims/next-image.tsx"],
+      "next/navigation": ["./.design-sync/shims/next-navigation.ts"]
+    }
+  }
+}

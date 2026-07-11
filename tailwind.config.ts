@@ -75,6 +75,14 @@ const config: Config = {
           "0%": { transform: "rotate(0deg)" },
           "100%": { transform: "rotate(360deg)" },
         },
+        kenburns: {
+          "0%": { transform: "scale(1.03)" },
+          "100%": { transform: "scale(1.16)" },
+        },
+        floaty: {
+          "0%, 100%": { transform: "translateY(0)" },
+          "50%": { transform: "translateY(-10px)" },
+        },
       },
       animation: {
         shimmer: "shimmer 1.6s ease-in-out infinite",
@@ -83,6 +91,8 @@ const config: Config = {
         "pulse-soft": "pulse-soft 2.4s ease-in-out infinite",
         marquee: "marquee 40s linear infinite",
         orbit: "orbit 24s linear infinite",
+        kenburns: "kenburns 8s ease-out forwards",
+        floaty: "floaty 9s ease-in-out infinite",
       },
     },
   },
