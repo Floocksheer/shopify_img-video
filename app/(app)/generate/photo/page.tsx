@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useState } from "react";
 import { UploadDropzone } from "@/components/app/UploadDropzone";
 import { OptionPicker } from "@/components/app/OptionPicker";
+import { Textarea } from "@/components/ui/Textarea";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Badge } from "@/components/ui/Badge";
@@ -27,6 +28,7 @@ type ExportState = "idle" | "exporting" | "done" | "error";
 
 export default function PhotoGeneratorPage() {
   const [image, setImage] = useState<string | null>(null);
+  const [prompt, setPrompt] = useState("");
   const [theme, setTheme] = useState("studio");
   const [style, setStyle] = useState("minimal");
   const [loading, setLoading] = useState(false);
@@ -45,7 +47,7 @@ export default function PhotoGeneratorPage() {
       const res = await fetch("/api/generate/photo", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image, theme, style }),
+        body: JSON.stringify({ image, theme, style, prompt }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Generation failed");
@@ -101,6 +103,13 @@ export default function PhotoGeneratorPage() {
         {/* controls */}
         <div className="space-y-7">
           <UploadDropzone image={image} onImage={setImage} />
+          <Textarea
+            label="Prompt (optional)"
+            hint="Describe the scene you want. Leave blank to use the theme & style below."
+            placeholder="e.g. perfume bottle on a marble table beside fresh flowers, soft morning light"
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+          />
           <OptionPicker label="Background theme" options={THEMES} value={theme} onChange={setTheme} columns={2} />
           <OptionPicker label="Style" options={STYLES} value={style} onChange={setStyle} columns={2} />
           <Button className="w-full" size="lg" disabled={!image || loading} onClick={generate}>

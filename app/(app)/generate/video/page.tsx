@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { UploadDropzone } from "@/components/app/UploadDropzone";
 import { OptionPicker } from "@/components/app/OptionPicker";
+import { Textarea } from "@/components/ui/Textarea";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { addToHistory } from "@/lib/history";
@@ -15,6 +16,7 @@ const MOTIONS = [
 
 export default function VideoGeneratorPage() {
   const [image, setImage] = useState<string | null>(null);
+  const [prompt, setPrompt] = useState("");
   const [motion, setMotion] = useState("orbit");
   const [loading, setLoading] = useState(false);
   const [video, setVideo] = useState<string | null>(null);
@@ -30,7 +32,7 @@ export default function VideoGeneratorPage() {
       const res = await fetch("/api/generate/video", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image, motion }),
+        body: JSON.stringify({ image, motion, prompt }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Generation failed");
@@ -60,7 +62,7 @@ export default function VideoGeneratorPage() {
             Video Studio
           </p>
           <h1 className="mt-2 font-display text-4xl tracking-display text-ink">
-            Ten seconds of <em className="text-gradient-iris font-light italic">motion.</em>
+            Five seconds of <em className="text-gradient-iris font-light italic">motion.</em>
           </h1>
         </div>
         {demo && <Badge tone="warning">Demo output</Badge>}
@@ -69,9 +71,16 @@ export default function VideoGeneratorPage() {
       <div className="mt-8 grid gap-8 lg:grid-cols-[380px_1fr]">
         <div className="space-y-7">
           <UploadDropzone image={image} onImage={setImage} />
+          <Textarea
+            label="Prompt (optional)"
+            hint="Describe the motion or scene you want. Leave blank to use the motion style below."
+            placeholder="e.g. slow cinematic zoom, product rotating on a pedestal, soft studio glow"
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+          />
           <OptionPicker label="Motion style" options={MOTIONS} value={motion} onChange={setMotion} columns={3} />
           <Button className="w-full" size="lg" disabled={!image || loading} onClick={generate}>
-            {loading ? "Rendering… (~1 min)" : "Generate 10s clip"}
+            {loading ? "Rendering… (~1 min)" : "Generate 5s clip"}
             {!loading && (
               <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" aria-hidden>
                 <path d="M4 2.5v9l7-4.5-7-4.5z" />
@@ -132,7 +141,7 @@ export default function VideoGeneratorPage() {
               </p>
               <p className="mt-2 max-w-xs text-sm leading-body text-dim">
                 Upload a product photo and pick a motion style — Lumora renders
-                a 10-second clip ready for reels and product pages.
+                a 5-second clip ready for reels and product pages.
               </p>
             </div>
           )}

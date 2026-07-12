@@ -11,7 +11,7 @@ export async function POST(request: Request) {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 
-  const { image, theme, style } = await request.json();
+  const { image, theme, style, prompt } = await request.json();
   if (!image || !theme) {
     return NextResponse.json({ error: "Missing image or theme" }, { status: 400 });
   }
@@ -29,7 +29,7 @@ export async function POST(request: Request) {
     let demo = false;
 
     if (isLive("fal")) {
-      images = await generateProductPhotos({ imageDataUrl: image, theme, style, count: 4 });
+      images = await generateProductPhotos({ imageDataUrl: image, theme, style, count: 4, prompt });
     } else {
       images = await demoGeneratePhotos(theme, 4);
       demo = true;

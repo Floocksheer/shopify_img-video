@@ -11,7 +11,6 @@ export const services = {
     has("NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_ANON_KEY"),
   stripe: () => has("STRIPE_SECRET_KEY"),
   fal: () => has("FAL_KEY"),
-  kling: () => has("KLING_ACCESS_KEY", "KLING_SECRET_KEY"),
   apify: () => has("APIFY_TOKEN"),
   anthropic: () => has("ANTHROPIC_API_KEY"),
   shopify: () => has("SHOPIFY_STORE_DOMAIN", "SHOPIFY_ADMIN_ACCESS_TOKEN"),

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { isLive } from "@/lib/env";
 import { getSessionUser } from "@/lib/auth";
-import { generateProductVideo } from "@/lib/kling";
+import { generateProductVideo } from "@/lib/fal";
 import { demoGenerateVideo } from "@/lib/demo";
 import { consumeUsage, recordGeneration } from "@/lib/usage";
 
@@ -11,7 +11,7 @@ export async function POST(request: Request) {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 
-  const { image, motion } = await request.json();
+  const { image, motion, prompt } = await request.json();
   if (!image || !motion) {
     return NextResponse.json({ error: "Missing image or motion style" }, { status: 400 });
   }
@@ -28,8 +28,8 @@ export async function POST(request: Request) {
     let result: { url: string; durationSeconds: number };
     let demo = false;
 
-    if (isLive("kling")) {
-      result = await generateProductVideo({ imageDataUrl: image, motion });
+    if (isLive("fal")) {
+      result = await generateProductVideo({ imageDataUrl: image, motion, prompt });
     } else {
       result = await demoGenerateVideo(motion);
       demo = true;
