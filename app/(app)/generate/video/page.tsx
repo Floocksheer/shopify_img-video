@@ -1,30 +1,29 @@
 "use client";
 
 import { useState } from "react";
-import { UploadDropzone } from "@/components/app/UploadDropzone";
+import { MultiUploadDropzone } from "@/components/app/MultiUploadDropzone";
 import { OptionPicker } from "@/components/app/OptionPicker";
 import { Textarea } from "@/components/ui/Textarea";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { addToHistory } from "@/lib/history";
 
-const MOTIONS = [
-  { id: "orbit", label: "Slow orbit", hint: "360° around the product" },
-  { id: "dolly", label: "Dolly-in", hint: "Cinematic push toward it" },
-  { id: "pan", label: "Pan", hint: "Smooth lateral glide" },
+const DURATIONS = [
+  { id: "5", label: "5 seconds", hint: "Quick loop" },
+  { id: "10", label: "10 seconds", hint: "Fuller reveal" },
 ];
 
 export default function VideoGeneratorPage() {
-  const [image, setImage] = useState<string | null>(null);
+  const [images, setImages] = useState<string[]>([]);
   const [prompt, setPrompt] = useState("");
-  const [motion, setMotion] = useState("orbit");
+  const [duration, setDuration] = useState("5");
   const [loading, setLoading] = useState(false);
   const [video, setVideo] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [demo, setDemo] = useState(false);
 
   async function generate() {
-    if (!image) return;
+    if (images.length === 0) return;
     setLoading(true);
     setError(null);
     setVideo(null);
@@ -32,18 +31,20 @@ export default function VideoGeneratorPage() {
       const res = await fetch("/api/generate/video", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image, motion, prompt }),
+        body: JSON.stringify({ images, prompt, duration: Number(duration) }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Generation failed");
-      setVideo(json.url);
+      const url: string | null = json.url ?? (json.urls?.[0] ?? null);
+      setVideo(url);
       setDemo(!!json.demo);
+      const label = prompt.trim().slice(0, 40) || "Product video";
       addToHistory([
         {
           id: `${Date.now()}`,
           type: "video",
-          url: image, // thumbnail = source image
-          theme: MOTIONS.find((m) => m.id === motion)?.label ?? motion,
+          url: images[0], // thumbnail = first source photo
+          theme: label,
           createdAt: new Date().toISOString(),
         },
       ]);
@@ -62,7 +63,7 @@ export default function VideoGeneratorPage() {
             Video Studio
           </p>
           <h1 className="mt-2 font-display text-4xl tracking-display text-ink">
-            Five seconds of <em className="text-gradient-iris font-light italic">motion.</em>
+            Your photos, <em className="text-gradient-iris font-light italic">one video.</em>
           </h1>
         </div>
         {demo && <Badge tone="warning">Demo output</Badge>}
@@ -70,17 +71,22 @@ export default function VideoGeneratorPage() {
 
       <div className="mt-8 grid gap-8 lg:grid-cols-[380px_1fr]">
         <div className="space-y-7">
-          <UploadDropzone image={image} onImage={setImage} />
+          <MultiUploadDropzone
+            images={images}
+            onChange={setImages}
+            max={4}
+            hint="the first (clearest) photo becomes the video's first frame"
+          />
           <Textarea
-            label="Prompt (optional)"
-            hint="Describe the motion or scene you want. Leave blank to use the motion style below."
-            placeholder="e.g. slow cinematic zoom, product rotating on a pedestal, soft studio glow"
+            label="Prompt"
+            hint="Describe the camera motion you want. Leave blank for a smooth cinematic move. Output is 1080p."
+            placeholder="e.g. camera slowly pushes in on the product, soft studio glow, gentle reflections"
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
           />
-          <OptionPicker label="Motion style" options={MOTIONS} value={motion} onChange={setMotion} columns={3} />
-          <Button className="w-full" size="lg" disabled={!image || loading} onClick={generate}>
-            {loading ? "Rendering… (~1 min)" : "Generate 5s clip"}
+          <OptionPicker label="Duration" options={DURATIONS} value={duration} onChange={setDuration} columns={2} />
+          <Button className="w-full" size="lg" disabled={images.length === 0 || loading} onClick={generate}>
+            {loading ? "Rendering… (~1 min)" : `Generate ${duration}s video`}
             {!loading && (
               <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" aria-hidden>
                 <path d="M4 2.5v9l7-4.5-7-4.5z" />
@@ -98,7 +104,7 @@ export default function VideoGeneratorPage() {
           {loading && (
             <div className="skeleton flex aspect-video items-center justify-center rounded-card">
               <p className="relative z-10 animate-pulse-soft font-mono text-xs uppercase tracking-[0.24em] text-muted">
-                Rendering your clip…
+                Rendering your video…
               </p>
             </div>
           )}
@@ -137,11 +143,12 @@ export default function VideoGeneratorPage() {
                 🎬
               </span>
               <p className="mt-5 font-display text-2xl tracking-display text-muted">
-                Your clip will play here
+                Your video will play here
               </p>
               <p className="mt-2 max-w-xs text-sm leading-body text-dim">
-                Upload a product photo and pick a motion style — Lumora renders
-                a 5-second clip ready for reels and product pages.
+                Upload a clear product photo and describe the camera motion —
+                Lumora animates it into a faithful 1080p clip, ready for reels
+                and product pages.
               </p>
             </div>
           )}

@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useState } from "react";
-import { UploadDropzone } from "@/components/app/UploadDropzone";
+import { MultiUploadDropzone } from "@/components/app/MultiUploadDropzone";
 import { OptionPicker } from "@/components/app/OptionPicker";
 import { Textarea } from "@/components/ui/Textarea";
 import { Button } from "@/components/ui/Button";
@@ -10,35 +10,53 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { Badge } from "@/components/ui/Badge";
 import { addToHistory } from "@/lib/history";
 
-const THEMES = [
-  { id: "studio", label: "Studio", hint: "Clean white, softbox light" },
-  { id: "lifestyle", label: "Lifestyle", hint: "Styled interiors" },
-  { id: "outdoor", label: "Outdoor", hint: "Golden hour, nature" },
-  { id: "seasonal", label: "Seasonal", hint: "Holiday campaigns" },
+const ASPECTS = [
+  { id: "1:1", label: "Square", hint: "1:1 · grid" },
+  { id: "4:3", label: "Landscape", hint: "4:3 · banner" },
+  { id: "3:4", label: "Portrait", hint: "3:4 · mobile" },
+  { id: "16:9", label: "Wide", hint: "16:9 · hero" },
+  { id: "9:16", label: "Story", hint: "9:16 · reels" },
 ];
 
-const STYLES = [
-  { id: "minimal", label: "Minimal", hint: "Negative space" },
-  { id: "vibrant", label: "Vibrant", hint: "Bold color" },
-  { id: "moody", label: "Moody", hint: "Deep shadows" },
-  { id: "soft", label: "Soft", hint: "Airy pastels" },
+// Tailwind aspect class per ratio, so previews match the generated shape.
+const ASPECT_CLASS: Record<string, string> = {
+  "1:1": "aspect-square",
+  "4:3": "aspect-[4/3]",
+  "3:4": "aspect-[3/4]",
+  "16:9": "aspect-video",
+  "9:16": "aspect-[9/16]",
+};
+
+const QUALITIES = [
+  { id: "standard", label: "Standard", hint: "~1080p · faster" },
+  { id: "high", label: "High", hint: "~2K · sharper" },
+];
+
+const COUNTS = [
+  { id: "1", label: "1", hint: "Single" },
+  { id: "2", label: "2", hint: "Pair" },
+  { id: "4", label: "4", hint: "Set" },
+  { id: "6", label: "6", hint: "Full set" },
 ];
 
 type ExportState = "idle" | "exporting" | "done" | "error";
 
 export default function PhotoGeneratorPage() {
-  const [image, setImage] = useState<string | null>(null);
+  const [images, setImages] = useState<string[]>([]);
   const [prompt, setPrompt] = useState("");
-  const [theme, setTheme] = useState("studio");
-  const [style, setStyle] = useState("minimal");
+  const [aspect, setAspect] = useState("1:1");
+  const [quality, setQuality] = useState("standard");
+  const [count, setCount] = useState("4");
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [demo, setDemo] = useState(false);
   const [exports, setExports] = useState<Record<number, ExportState>>({});
 
+  const n = Number(count);
+
   async function generate() {
-    if (!image) return;
+    if (images.length === 0) return;
     setLoading(true);
     setError(null);
     setResults([]);
@@ -47,19 +65,19 @@ export default function PhotoGeneratorPage() {
       const res = await fetch("/api/generate/photo", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image, theme, style, prompt }),
+        body: JSON.stringify({ images, prompt, aspectRatio: aspect, quality, count: n }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Generation failed");
       setResults(json.images);
       setDemo(!!json.demo);
-      const themeLabel = THEMES.find((t) => t.id === theme)?.label ?? theme;
+      const label = prompt.trim().slice(0, 40) || "Product photo";
       addToHistory(
         (json.images as string[]).map((url, i) => ({
           id: `${Date.now()}-${i}`,
           type: "photo" as const,
           url,
-          theme: themeLabel,
+          theme: label,
           createdAt: new Date().toISOString(),
         })),
       );
@@ -76,7 +94,7 @@ export default function PhotoGeneratorPage() {
       const res = await fetch("/api/shopify/export", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageUrl: url, filename: `lumora-${theme}-${index + 1}.jpg` }),
+        body: JSON.stringify({ imageUrl: url, filename: `lumora-photo-${index + 1}.jpg` }),
       });
       if (!res.ok) throw new Error();
       setExports((s) => ({ ...s, [index]: "done" }));
@@ -93,7 +111,7 @@ export default function PhotoGeneratorPage() {
             Photo Studio
           </p>
           <h1 className="mt-2 font-display text-4xl tracking-display text-ink">
-            One photo in, <em className="text-gradient-iris font-light italic">four out.</em>
+            One photo in, <em className="text-gradient-iris font-light italic">a set out.</em>
           </h1>
         </div>
         {demo && <Badge tone="warning">Demo output</Badge>}
@@ -102,18 +120,24 @@ export default function PhotoGeneratorPage() {
       <div className="mt-8 grid gap-8 lg:grid-cols-[380px_1fr]">
         {/* controls */}
         <div className="space-y-7">
-          <UploadDropzone image={image} onImage={setImage} />
+          <MultiUploadDropzone
+            images={images}
+            onChange={setImages}
+            max={10}
+            hint="add more angles of the same product"
+          />
           <Textarea
-            label="Prompt (optional)"
-            hint="Describe the scene you want. Leave blank to use the theme & style below."
+            label="Prompt"
+            hint="Describe the scene you want. Leave blank for a clean studio shot."
             placeholder="e.g. perfume bottle on a marble table beside fresh flowers, soft morning light"
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
           />
-          <OptionPicker label="Background theme" options={THEMES} value={theme} onChange={setTheme} columns={2} />
-          <OptionPicker label="Style" options={STYLES} value={style} onChange={setStyle} columns={2} />
-          <Button className="w-full" size="lg" disabled={!image || loading} onClick={generate}>
-            {loading ? "Generating…" : "Generate 4 photos"}
+          <OptionPicker label="Aspect ratio" options={ASPECTS} value={aspect} onChange={setAspect} columns={3} />
+          <OptionPicker label="Resolution" options={QUALITIES} value={quality} onChange={setQuality} columns={2} />
+          <OptionPicker label="How many photos" options={COUNTS} value={count} onChange={setCount} columns={4} />
+          <Button className="w-full" size="lg" disabled={images.length === 0 || loading} onClick={generate}>
+            {loading ? "Generating…" : `Generate ${n} photo${n > 1 ? "s" : ""}`}
             {!loading && (
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden>
                 <path d="M8 1.5l1.7 4.1 4.4.4-3.3 2.9 1 4.3L8 10.9l-3.8 2.3 1-4.3-3.3-2.9 4.4-.4L8 1.5z" strokeLinejoin="round" />
@@ -131,8 +155,8 @@ export default function PhotoGeneratorPage() {
         <div>
           {loading && (
             <div className="grid grid-cols-2 gap-4">
-              {[0, 1, 2, 3].map((i) => (
-                <Skeleton key={i} className="aspect-[4/5]" />
+              {Array.from({ length: n }).map((_, i) => (
+                <Skeleton key={i} className={ASPECT_CLASS[aspect] ?? "aspect-square"} />
               ))}
             </div>
           )}
@@ -150,13 +174,13 @@ export default function PhotoGeneratorPage() {
                     alt={`Generated product photo ${i + 1}`}
                     width={480}
                     height={600}
-                    className="aspect-[4/5] w-full object-cover"
+                    className={`${ASPECT_CLASS[aspect] ?? "aspect-square"} w-full object-cover`}
                     unoptimized
                   />
                   <div className="absolute inset-0 flex items-end justify-between gap-2 bg-gradient-to-t from-night/85 via-transparent to-transparent p-3 opacity-0 transition-opacity duration-300 group-hover:opacity-100 group-focus-within:opacity-100">
                     <a
                       href={url}
-                      download={`lumora-${theme}-${i + 1}.jpg`}
+                      download={`lumora-photo-${i + 1}.jpg`}
                       target="_blank"
                       rel="noreferrer"
                       className="flex h-9 flex-1 items-center justify-center gap-1.5 rounded-full bg-white/10 text-xs font-medium text-ink backdrop-blur-sm transition-colors duration-200 hover:bg-white/20"
@@ -188,8 +212,8 @@ export default function PhotoGeneratorPage() {
                 Your set will appear here
               </p>
               <p className="mt-2 max-w-xs text-sm leading-body text-dim">
-                Upload a product photo, pick a theme and style, and generate
-                four studio-grade variations.
+                Upload a product photo, describe the scene you want, and generate
+                studio-grade variations.
               </p>
             </div>
           )}

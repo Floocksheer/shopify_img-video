@@ -11,12 +11,21 @@ export async function POST(request: Request) {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 
-  const { image, theme, style, prompt } = await request.json();
-  if (!image || !theme) {
-    return NextResponse.json({ error: "Missing image or theme" }, { status: 400 });
+  const body = await request.json();
+  const { prompt, aspectRatio, quality } = body;
+  // Accept a list of source photos; fall back to the legacy single `image`.
+  const sources: string[] = Array.isArray(body.images)
+    ? body.images.filter((s: unknown): s is string => typeof s === "string" && s.length > 0)
+    : body.image
+      ? [body.image]
+      : [];
+  if (sources.length === 0) {
+    return NextResponse.json({ error: "Please upload at least one product photo" }, { status: 400 });
   }
+  // How many distinct photos to generate (1–4).
+  const count = Math.min(6, Math.max(1, Math.round(Number(body.count) || 4)));
 
-  const allowed = await consumeUsage(user, "photo", 4);
+  const allowed = await consumeUsage(user, "photo", count);
   if (!allowed) {
     return NextResponse.json(
       { error: "You've reached this month's photo limit. Upgrade to Pro for 600 photos/month." },
@@ -29,15 +38,15 @@ export async function POST(request: Request) {
     let demo = false;
 
     if (isLive("fal")) {
-      images = await generateProductPhotos({ imageDataUrl: image, theme, style, count: 4, prompt });
+      images = await generateProductPhotos({ imageDataUrls: sources, count, prompt, aspectRatio, quality });
     } else {
-      images = await demoGeneratePhotos(theme, 4);
+      images = await demoGeneratePhotos("studio", count);
       demo = true;
     }
 
     await Promise.all(
       images.map((url) =>
-        recordGeneration(user, { type: "photo", outputUrl: url, meta: { theme, style } }),
+        recordGeneration(user, { type: "photo", inputUrl: sources[0], outputUrl: url, meta: { prompt } }),
       ),
     );
 
