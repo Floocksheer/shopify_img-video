@@ -49,7 +49,7 @@ const DEFAULT_VIDEO_PROMPT =
 // them into a grid". Stating the single-frame rule explicitly is what actually
 // stops the collage.
 const SINGLE_SUBJECT =
-  "show the product as one single item in one continuous photograph, not a collage, not a grid, no split screen, no multiple panels, no side-by-side comparison";
+  "show exactly one single copy of the product from one single camera viewpoint in one continuous full-frame photograph, not a collage, not a grid, no split screen, no multiple panels, no side-by-side comparison, no inset or thumbnail, never two or more views of the product in the same image";
 
 // Distinct framing per output so a set is genuinely varied instead of several
 // near-identical seeds. Deliberately camera/composition words only, so they
@@ -59,7 +59,7 @@ const ANGLE_HINTS = [
   "side profile angle",
   "top-down flat-lay composition",
   "close-up detail crop",
-  "low-angle dramatic hero shot",
+  "low-angle hero shot",
   "back three-quarter angle",
 ];
 
@@ -125,6 +125,19 @@ const QUALITY_SUFFIX =
 // so a prompt is free to move the product into any scene.
 const PRODUCT_PRESERVE =
   "keep the product itself unchanged — its exact shape, proportions, color, materials, logo and text; do not distort or redesign the product";
+
+// Appended only when the user pinned an exact background colour / hex or asked
+// for a solid/flat backdrop. Stops the warm-gradient / coloured-light-spill
+// drift seen when a specific background colour is requested.
+const BACKGROUND_FIDELITY =
+  "the background must be a single flat, uniform, evenly-lit colour exactly as specified, filling the whole frame edge to edge, with no gradient, vignette, colour shift, reflection band or coloured light spill";
+
+// Signals that the user wants a specific solid background colour: a hex code, or
+// a colour word attached to "background/backdrop", or an explicit flat backdrop.
+const SOLID_BG_RE =
+  /#[0-9a-fA-F]{3,8}\b|\b(background|backdrop|arka\s*plan)\b[^.]{0,40}\b(colou?r|rengi|solid|flat|plain|uniform|seamless)\b|\b(solid|flat|plain|uniform|seamless)\b[^.]{0,20}\b(background|backdrop)\b/i;
+
+const wantsSolidBackground = (p: string) => SOLID_BG_RE.test(p);
 
 // Added only when the user wrote a scene prompt. Edit models (Seedream) keep the
 // original background unless told to replace it, so this makes the restage
@@ -199,6 +212,9 @@ export async function generateProductPhotos(opts: {
   // scene; a blank prompt keeps the neutral studio default. Detect intent on the
   // ORIGINAL text so an explicit "empty/studio" request isn't overridden.
   const scene = custom ? `, ${sceneDirectiveFor(custom)}` : "";
+  // Pin a flat, uniform backdrop when the user gave an exact colour/hex, so
+  // per-image seeds/angles can't drift the background into a coloured gradient.
+  const bg = custom && wantsSolidBackground(custom) ? `, ${BACKGROUND_FIDELITY}` : "";
   const model = imageModel();
   const aspect = normalizeAspect(opts.aspectRatio);
   const quality = opts.quality ?? "standard";
@@ -208,7 +224,7 @@ export async function generateProductPhotos(opts: {
   const calls = Array.from({ length: count }, async (_, i) => {
     // Only vary framing when more than one image is asked for.
     const framing = count > 1 ? `, ${ANGLE_HINTS[i % ANGLE_HINTS.length]}` : "";
-    const prompt = `${base}${framing}${scene}, ${QUALITY_SUFFIX}, ${PRODUCT_PRESERVE}, ${SINGLE_SUBJECT}`;
+    const prompt = `${base}${framing}${scene}${bg}, ${QUALITY_SUFFIX}, ${PRODUCT_PRESERVE}, ${SINGLE_SUBJECT}`;
     const input = buildImageInput(model, opts.imageDataUrls, prompt, 1, aspect, quality);
     input.seed = baseSeed + i * 1013; // distinct seed → distinct result
     const result = await fal.subscribe(model, { input });

@@ -134,7 +134,7 @@ export default function PhotoGeneratorPage() {
           />
           <Textarea
             label="Prompt"
-            hint="Describe the scene you want. Leave blank for a clean studio shot."
+            hint="Describe the scene and any exact background colour. No need to list angles — the set automatically varies them. Leave blank for a clean studio shot."
             placeholder="e.g. perfume bottle on a marble table beside fresh flowers, soft morning light"
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}

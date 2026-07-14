@@ -54,9 +54,21 @@ function buildSystem(medium: "photo" | "video"): string {
     `   exactly. Do not put words in the brief that would alter the product.`,
     `5. If the customer asks for a minimal, empty, plain or studio/white backdrop, honour that`,
     `   exactly — keep it clean and uncluttered, do not fill it with props.`,
+    `6. EXACT COLOURS: Preserve any exact colours, hex codes (e.g. #F2E9DE) or named colours the`,
+    `   customer gives, verbatim and unchanged. If they specify a background colour, describe it as`,
+    `   a clean, uniform, evenly-lit background of exactly that colour filling the frame, with NO`,
+    `   gradient, vignette, colour shift or coloured light spill unless they explicitly asked for one.`,
+    `7. SINGLE VIEW, SINGLE PRODUCT: Describe exactly ONE ${medium === "video" ? "clip" : "photograph"}`,
+    `   showing ONE single instance of the product. Never imply a collage, grid, split-screen,`,
+    `   multiple panels, side-by-side layout or more than one copy of the product in the frame.`,
+    `   If the customer asks for several angles, sides, views or poses (front, back, left, right,`,
+    `   diagonal, etc.), do NOT combine or enumerate them and do NOT fix any single camera viewpoint`,
+    `   — each angle is a SEPARATE ${medium === "video" ? "clip" : "image"} produced elsewhere, so`,
+    `   describe only the shared scene, lighting and mood and leave the camera angle unspecified.`,
+    `   If they ask for exactly one specific view, you may keep that single viewpoint.`,
     medium === "video"
-      ? `6. MOTION: Use exactly the camera motion the customer asked for; if they named none, add one`
-      : `6. Frame it as a single, natural, professional product shot.`,
+      ? `8. MOTION: Use exactly the camera motion the customer asked for; if they named none, add one`
+      : `8. Frame it as a single, natural, professional product shot.`,
     medium === "video" ? `   natural, slow, realistic camera move that suits the scene.` : ``,
     ``,
     `Output ONLY the final English brief as flowing prose. No preamble, no labels, no quotes, no lists.`,
