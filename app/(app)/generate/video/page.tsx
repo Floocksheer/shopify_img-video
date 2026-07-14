@@ -21,12 +21,14 @@ export default function VideoGeneratorPage() {
   const [video, setVideo] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [demo, setDemo] = useState(false);
+  const [geminiError, setGeminiError] = useState(false);
 
   async function generate() {
     if (images.length === 0) return;
     setLoading(true);
     setError(null);
     setVideo(null);
+    setGeminiError(false);
     try {
       const res = await fetch("/api/generate/video", {
         method: "POST",
@@ -38,6 +40,7 @@ export default function VideoGeneratorPage() {
       const url: string | null = json.url ?? (json.urls?.[0] ?? null);
       setVideo(url);
       setDemo(!!json.demo);
+      setGeminiError(!!json.geminiError);
       const label = prompt.trim().slice(0, 40) || "Product video";
       addToHistory([
         {
@@ -66,7 +69,10 @@ export default function VideoGeneratorPage() {
             Your photos, <em className="text-gradient-iris font-light italic">one video.</em>
           </h1>
         </div>
-        {demo && <Badge tone="warning">Demo output</Badge>}
+        <div className="flex items-center gap-2">
+          {geminiError && <Badge tone="warning">⚠ Gemini hatası</Badge>}
+          {demo && <Badge tone="warning">Demo output</Badge>}
+        </div>
       </header>
 
       <div className="mt-8 grid gap-8 lg:grid-cols-[380px_1fr]">
@@ -75,12 +81,12 @@ export default function VideoGeneratorPage() {
             images={images}
             onChange={setImages}
             max={4}
-            hint="the first (clearest) photo becomes the video's first frame"
+            hint="upload one or more clear photos of the same product"
           />
           <Textarea
             label="Prompt"
-            hint="Describe the camera motion you want. Leave blank for a smooth cinematic move. Output is 1080p."
-            placeholder="e.g. camera slowly pushes in on the product, soft studio glow, gentle reflections"
+            hint="Describe the scene and the camera motion. The product is placed into that scene first, so the video starts already there — no fade-in from your original photo. Leave blank for a smooth studio move."
+            placeholder="e.g. product on a modern office desk, camera slowly pushes in, soft daylight, gentle reflections"
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
           />

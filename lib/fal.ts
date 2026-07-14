@@ -1,5 +1,6 @@
 import { fal } from "@fal-ai/client";
 import { isLive } from "@/lib/env";
+import { expandScenePrompt } from "@/lib/enhance";
 
 // Model ids come from .env so quality/price tier can change with no code edits.
 const DEFAULT_IMAGE_MODEL = "fal-ai/flux-pro/kontext";
@@ -126,9 +127,32 @@ const PRODUCT_PRESERVE =
   "keep the product itself unchanged — its exact shape, proportions, color, materials, logo and text; do not distort or redesign the product";
 
 // Added only when the user wrote a scene prompt. Edit models (Seedream) keep the
-// original background unless told to replace it, so this makes the restage explicit.
-const SCENE_DIRECTIVE =
+// original background unless told to replace it, so this makes the restage
+// explicit. The directive is built per-prompt: it always replaces the
+// background, but whether it FILLS the scene depends on what the user asked for.
+const SCENE_DIRECTIVE_BASE =
   "fully restage the product into the described scene: replace the original background, floor and surroundings entirely to match the prompt, with realistic lighting, shadows and reflections";
+
+// Default: a sparse prompt like "a stylish office" otherwise renders an empty
+// room, so demand a fully dressed environment.
+const SCENE_FILL =
+  "build a complete, richly detailed environment with the appropriate furniture, props and set dressing that clearly conveys the described setting";
+
+// Used instead of SCENE_FILL when the user explicitly wants a minimal/empty/
+// studio backdrop — so we honour that request instead of cluttering it.
+const SCENE_MINIMAL =
+  "keep the setting minimal and uncluttered exactly as described — a clean, simple backdrop with only what the prompt calls for; do not add extra furniture, props or clutter";
+
+// Words that signal the user genuinely wants a bare/empty/studio look. When any
+// appears we drop the "fill the scene" push so the model obeys the request.
+const MINIMAL_SCENE_RE =
+  /\b(empty|minimal|minimalist|plain|bare|blank|clean background|seamless|studio (?:backdrop|background)|white background|solid (?:color )?background|negative space|no props|nothing else|uncluttered)\b/i;
+
+/** Pick the scene directive that matches what the user actually asked for. */
+function sceneDirectiveFor(prompt: string): string {
+  const fill = MINIMAL_SCENE_RE.test(prompt) ? SCENE_MINIMAL : SCENE_FILL;
+  return `${SCENE_DIRECTIVE_BASE}; ${fill}`;
+}
 
 // Realism layer for video (applies to any product). The identity lock is
 // appended to every video prompt; the negative prompt is passed to models that
@@ -159,15 +183,22 @@ export async function generateProductPhotos(opts: {
   aspectRatio?: string;
   /** Resolution tier (only affects image_size-capable models). */
   quality?: Quality;
-}): Promise<string[]> {
+}): Promise<{ images: string[]; enhanceError: boolean }> {
   if (!isLive("fal")) throw new Error("fal.ai is not configured");
   fal.config({ credentials: process.env.FAL_KEY! });
 
   const custom = opts.prompt?.trim();
-  const base = custom || DEFAULT_PHOTO_PROMPT;
+  // Enrich a short brief into a concrete scene so the model doesn't render an
+  // empty room (see expandScenePrompt). Falls back to the raw text if no text
+  // provider is configured or the call fails.
+  const enh = custom
+    ? await expandScenePrompt(custom, "photo")
+    : { prompt: null, failed: false };
+  const base = enh.prompt || custom || DEFAULT_PHOTO_PROMPT;
   // Only force a full background replacement when the user actually described a
-  // scene; a blank prompt keeps the neutral studio default.
-  const scene = custom ? `, ${SCENE_DIRECTIVE}` : "";
+  // scene; a blank prompt keeps the neutral studio default. Detect intent on the
+  // ORIGINAL text so an explicit "empty/studio" request isn't overridden.
+  const scene = custom ? `, ${sceneDirectiveFor(custom)}` : "";
   const model = imageModel();
   const aspect = normalizeAspect(opts.aspectRatio);
   const quality = opts.quality ?? "standard";
@@ -185,10 +216,33 @@ export async function generateProductPhotos(opts: {
   });
 
   const urls = await Promise.all(calls);
-  return urls.filter((u): u is string => typeof u === "string" && u.length > 0);
+  return {
+    images: urls.filter((u): u is string => typeof u === "string" && u.length > 0),
+    enhanceError: enh.failed,
+  };
 }
 
 export type VideoResolution = "480p" | "720p" | "1080p";
+
+/**
+ * Restage the product into a described scene as a single still, reusing the
+ * image model. Used as stage 1 of video generation so the clip's FIRST FRAME
+ * is already the target scene (see generateProductVideo). Returns one URL, or
+ * null if the model returned nothing.
+ */
+async function restageProductStill(
+  imageUrls: string[],
+  scenePrompt: string,
+  aspect: AspectRatio,
+  quality: Quality,
+): Promise<string | null> {
+  const model = imageModel();
+  const prompt = `${scenePrompt}, ${sceneDirectiveFor(scenePrompt)}, ${QUALITY_SUFFIX}, ${PRODUCT_PRESERVE}, ${SINGLE_SUBJECT}`;
+  const input = buildImageInput(model, imageUrls, prompt, 1, aspect, quality);
+  input.seed = Math.floor(Math.random() * 1_000_000);
+  const result = await fal.subscribe(model, { input });
+  return (result.data as { images?: { url: string }[] }).images?.[0]?.url ?? null;
+}
 
 /**
  * Build the model-specific input for image-to-video. One or more source photos
@@ -254,23 +308,48 @@ export async function generateProductVideo(opts: {
   resolution?: VideoResolution;
   /** Free-text motion/scene prompt; blank falls back to a neutral motion. */
   prompt?: string;
-}): Promise<{ url: string; durationSeconds: number }> {
+  /** Shape of the restaged first frame (only used when a scene prompt is set). */
+  aspectRatio?: string;
+}): Promise<{ url: string; durationSeconds: number; enhanceError: boolean }> {
   if (!isLive("fal")) throw new Error("fal.ai is not configured");
   fal.config({ credentials: process.env.FAL_KEY! });
 
-  const base = opts.prompt?.trim() || DEFAULT_VIDEO_PROMPT;
+  const custom = opts.prompt?.trim();
+  // Enrich the brief once; reused for both the restaged first frame and the
+  // video's own prompt so scene and motion stay consistent.
+  const enh = custom ? await expandScenePrompt(custom, "video") : { prompt: null, failed: false };
+  const enriched = enh.prompt || custom || "";
+  const base = enriched || DEFAULT_VIDEO_PROMPT;
   const finalPrompt = `${base}, ${VIDEO_IDENTITY_LOCK}`;
 
   const model = videoModel();
+
+  // Two-stage generation. i2v models use the input image as frame 0, so an
+  // un-restaged upload makes the clip START on the original background (e.g. a
+  // plain white studio shot) and then morph into the scene the user described.
+  // To avoid that, when the user actually described a scene we first restage
+  // the product into that scene as a still, then animate THAT still — so the
+  // video's first frame is already the target scene, no morph. Reference-fusion
+  // models (Pixverse / Seedance-reference) blend multiple photos into the clip
+  // themselves, so we leave those to their own flow.
+  const isReferenceModel =
+    model.includes("pixverse") || (model.includes("seedance") && model.includes("reference"));
+  let sourceImages = opts.imageDataUrls;
+  if (custom && !isReferenceModel) {
+    const aspect = normalizeAspect(opts.aspectRatio ?? "16:9");
+    const staged = await restageProductStill(opts.imageDataUrls, enriched, aspect, "high");
+    if (staged) sourceImages = [staged];
+  }
+
   // Kling i2v supports only 5s or 10s; clamp anything longer down to 10.
   let duration = opts.durationSeconds ?? 5;
   if (model.includes("kling") && duration > 10) duration = 10;
   const resolution = opts.resolution ?? "720p";
 
-  const input = buildVideoInput(model, opts.imageDataUrls, finalPrompt, duration, resolution);
+  const input = buildVideoInput(model, sourceImages, finalPrompt, duration, resolution);
   const result = await fal.subscribe(model, { input });
 
   const video = (result.data as { video?: { url?: string } }).video;
   if (!video?.url) throw new Error("fal returned no video URL");
-  return { url: video.url, durationSeconds: duration };
+  return { url: video.url, durationSeconds: duration, enhanceError: enh.failed };
 }

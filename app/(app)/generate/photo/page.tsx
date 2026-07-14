@@ -51,6 +51,7 @@ export default function PhotoGeneratorPage() {
   const [results, setResults] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [demo, setDemo] = useState(false);
+  const [geminiError, setGeminiError] = useState(false);
   const [exports, setExports] = useState<Record<number, ExportState>>({});
 
   const n = Number(count);
@@ -60,6 +61,7 @@ export default function PhotoGeneratorPage() {
     setLoading(true);
     setError(null);
     setResults([]);
+    setGeminiError(false);
     setExports({});
     try {
       const res = await fetch("/api/generate/photo", {
@@ -71,6 +73,7 @@ export default function PhotoGeneratorPage() {
       if (!res.ok) throw new Error(json.error ?? "Generation failed");
       setResults(json.images);
       setDemo(!!json.demo);
+      setGeminiError(!!json.geminiError);
       const label = prompt.trim().slice(0, 40) || "Product photo";
       addToHistory(
         (json.images as string[]).map((url, i) => ({
@@ -114,7 +117,10 @@ export default function PhotoGeneratorPage() {
             One photo in, <em className="text-gradient-iris font-light italic">a set out.</em>
           </h1>
         </div>
-        {demo && <Badge tone="warning">Demo output</Badge>}
+        <div className="flex items-center gap-2">
+          {geminiError && <Badge tone="warning">⚠ Gemini hatası</Badge>}
+          {demo && <Badge tone="warning">Demo output</Badge>}
+        </div>
       </header>
 
       <div className="mt-8 grid gap-8 lg:grid-cols-[380px_1fr]">

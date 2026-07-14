@@ -36,9 +36,12 @@ export async function POST(request: Request) {
   try {
     let images: string[];
     let demo = false;
+    let geminiError = false;
 
     if (isLive("fal")) {
-      images = await generateProductPhotos({ imageDataUrls: sources, count, prompt, aspectRatio, quality });
+      const res = await generateProductPhotos({ imageDataUrls: sources, count, prompt, aspectRatio, quality });
+      images = res.images;
+      geminiError = res.enhanceError;
     } else {
       images = await demoGeneratePhotos("studio", count);
       demo = true;
@@ -50,7 +53,7 @@ export async function POST(request: Request) {
       ),
     );
 
-    return NextResponse.json({ images, demo });
+    return NextResponse.json({ images, demo, geminiError });
   } catch (e) {
     console.error("photo generation failed:", e);
     return NextResponse.json(

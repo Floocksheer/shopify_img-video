@@ -40,7 +40,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    let result: { url: string; durationSeconds: number };
+    let result: { url: string; durationSeconds: number; enhanceError?: boolean };
     let demo = false;
 
     if (isLive("fal")) {
@@ -62,7 +62,7 @@ export async function POST(request: Request) {
       meta: { prompt, duration: result.durationSeconds, photos: sources.length },
     });
 
-    return NextResponse.json({ url: result.url, demo });
+    return NextResponse.json({ url: result.url, demo, geminiError: !!result.enhanceError });
   } catch (e) {
     console.error("video generation failed:", e);
     return NextResponse.json(
