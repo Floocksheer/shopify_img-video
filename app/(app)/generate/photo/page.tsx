@@ -10,27 +10,39 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { Badge } from "@/components/ui/Badge";
 import { addToHistory } from "@/lib/history";
 
-const ASPECTS = [
-  { id: "1:1", label: "Square", hint: "1:1 · grid" },
-  { id: "4:3", label: "Landscape", hint: "4:3 · banner" },
-  { id: "3:4", label: "Portrait", hint: "3:4 · mobile" },
-  { id: "16:9", label: "Wide", hint: "16:9 · hero" },
-  { id: "9:16", label: "Story", hint: "9:16 · reels" },
+// Two selection modes toggled in the same slot. Both hold 6 options laid out
+// as 3 columns × 2 rows, so switching between them never shifts the layout.
+const RATIOS = [
+  { id: "1:1", label: "1:1", hint: "Square" },
+  { id: "4:5", label: "4:5", hint: "Portrait" },
+  { id: "4:3", label: "4:3", hint: "Landscape" },
+  { id: "3:4", label: "3:4", hint: "Tall" },
+  { id: "16:9", label: "16:9", hint: "Wide" },
+  { id: "9:16", label: "9:16", hint: "Story" },
 ];
 
-// Tailwind aspect class per ratio, so previews match the generated shape.
-const ASPECT_CLASS: Record<string, string> = {
-  "1:1": "aspect-square",
-  "4:3": "aspect-[4/3]",
-  "3:4": "aspect-[3/4]",
-  "16:9": "aspect-video",
-  "9:16": "aspect-[9/16]",
+const RESOLUTIONS = [
+  { id: "2000x2000", label: "2000×2000", hint: "Square 2K" },
+  { id: "1920x1080", label: "1920×1080", hint: "Full HD" },
+  { id: "1080x1920", label: "1080×1920", hint: "Vertical HD" },
+  { id: "1080x1080", label: "1080×1080", hint: "Square HD" },
+  { id: "2048x1152", label: "2048×1152", hint: "16:9 · 2K" },
+  { id: "1600x1200", label: "1600×1200", hint: "4:3" },
+];
+
+// Ratio → pixel size at a 2K long edge, rounded to a multiple of 16 (mirrors
+// the server's pixelsFor). Used both to preview the shape and to send exact px.
+function ratioToDims(id: string): { w: number; h: number } {
+  const [rw, rh] = id.split(":").map(Number);
+  const scale = 2048 / Math.max(rw, rh);
+  const r16 = (n: number) => Math.max(256, Math.round((n * scale) / 16) * 16);
+  return { w: r16(rw), h: r16(rh) };
+}
+
+const parseRes = (id: string): { w: number; h: number } => {
+  const [w, h] = id.split("x").map(Number);
+  return { w, h };
 };
-
-const QUALITIES = [
-  { id: "standard", label: "Standard", hint: "~1080p · faster" },
-  { id: "high", label: "High", hint: "~2K · sharper" },
-];
 
 const COUNTS = [
   { id: "1", label: "1", hint: "Single" },
@@ -44,9 +56,13 @@ type ExportState = "idle" | "exporting" | "done" | "error";
 export default function PhotoGeneratorPage() {
   const [images, setImages] = useState<string[]>([]);
   const [prompt, setPrompt] = useState("");
-  const [aspect, setAspect] = useState("1:1");
-  const [quality, setQuality] = useState("standard");
+  const [sizeMode, setSizeMode] = useState<"ratio" | "resolution">("ratio");
+  const [ratioId, setRatioId] = useState("1:1");
+  const [resId, setResId] = useState("1920x1080");
   const [count, setCount] = useState("4");
+
+  // Pixel dimensions of the current selection, in either mode.
+  const dims = sizeMode === "ratio" ? ratioToDims(ratioId) : parseRes(resId);
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -67,7 +83,14 @@ export default function PhotoGeneratorPage() {
       const res = await fetch("/api/generate/photo", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ images, prompt, aspectRatio: aspect, quality, count: n }),
+        body: JSON.stringify({
+          images,
+          prompt,
+          count: n,
+          width: dims.w,
+          height: dims.h,
+          aspectRatio: sizeMode === "ratio" ? ratioId : undefined,
+        }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Generation failed");
@@ -139,8 +162,66 @@ export default function PhotoGeneratorPage() {
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
           />
-          <OptionPicker label="Aspect ratio" options={ASPECTS} value={aspect} onChange={setAspect} columns={3} />
-          <OptionPicker label="Resolution" options={QUALITIES} value={quality} onChange={setQuality} columns={2} />
+          {/* Toggle the same slot between aspect-ratio and exact-resolution
+              pickers. Both hold 6 options (3×2), so toggling never shifts. */}
+          <div>
+            <div className="flex items-center justify-between">
+              <span className="font-mono text-xs uppercase tracking-[0.2em] text-dim">
+                Output size
+              </span>
+              {/* Sliding segmented switch: the pill slides left/right. */}
+              <div
+                role="tablist"
+                aria-label="Choose output size mode"
+                className="relative grid grid-cols-2 rounded-full border border-line bg-elevated/50 p-0.5"
+              >
+                <span
+                  aria-hidden
+                  className="absolute inset-y-0.5 left-0.5 w-[calc(50%-2px)] rounded-full bg-iris/90 shadow-[0_0_0_3px_rgba(124,108,255,0.12)] transition-transform duration-200 ease-out"
+                  style={{ transform: sizeMode === "resolution" ? "translateX(100%)" : "translateX(0)" }}
+                />
+                {(["ratio", "resolution"] as const).map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    role="tab"
+                    aria-selected={sizeMode === m}
+                    onClick={() => setSizeMode(m)}
+                    className={
+                      "relative z-10 rounded-full px-3.5 py-1 text-[11px] font-medium transition-colors duration-200 " +
+                      (sizeMode === m ? "text-night" : "text-muted hover:text-ink")
+                    }
+                  >
+                    {m === "ratio" ? "Aspect ratio" : "Resolution"}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="mt-3 grid grid-cols-3 gap-2.5">
+              {(sizeMode === "ratio" ? RATIOS : RESOLUTIONS).map((opt) => {
+                const active = (sizeMode === "ratio" ? ratioId : resId) === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => (sizeMode === "ratio" ? setRatioId(opt.id) : setResId(opt.id))}
+                    aria-pressed={active}
+                    className={
+                      "rounded-xl border px-3 py-3 text-left transition-[border-color,background-color,transform] duration-200 active:scale-[0.98] " +
+                      (active
+                        ? "border-iris/60 bg-iris/[0.1] shadow-[0_0_0_3px_rgba(124,108,255,0.12)]"
+                        : "border-line bg-elevated/50 hover:border-white/[0.18] hover:bg-elevated")
+                    }
+                  >
+                    <span className={"block text-sm font-medium " + (active ? "text-iris-bright" : "text-ink")}>
+                      {opt.label}
+                    </span>
+                    {opt.hint && <span className="mt-0.5 block text-[11px] text-dim">{opt.hint}</span>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
           <OptionPicker label="How many photos" options={COUNTS} value={count} onChange={setCount} columns={4} />
           <Button className="w-full" size="lg" disabled={images.length === 0 || loading} onClick={generate}>
             {loading ? "Generating…" : `Generate ${n} photo${n > 1 ? "s" : ""}`}
@@ -162,7 +243,7 @@ export default function PhotoGeneratorPage() {
           {loading && (
             <div className="grid grid-cols-2 gap-4">
               {Array.from({ length: n }).map((_, i) => (
-                <Skeleton key={i} className={ASPECT_CLASS[aspect] ?? "aspect-square"} />
+                <Skeleton key={i} style={{ aspectRatio: `${dims.w} / ${dims.h}` }} />
               ))}
             </div>
           )}
@@ -180,7 +261,8 @@ export default function PhotoGeneratorPage() {
                     alt={`Generated product photo ${i + 1}`}
                     width={480}
                     height={600}
-                    className={`${ASPECT_CLASS[aspect] ?? "aspect-square"} w-full object-cover`}
+                    style={{ aspectRatio: `${dims.w} / ${dims.h}` }}
+                    className="w-full object-cover"
                     unoptimized
                   />
                   <div className="absolute inset-0 flex items-end justify-between gap-2 bg-gradient-to-t from-night/85 via-transparent to-transparent p-3 opacity-0 transition-opacity duration-300 group-hover:opacity-100 group-focus-within:opacity-100">

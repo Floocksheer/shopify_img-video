@@ -13,6 +13,9 @@ export async function POST(request: Request) {
 
   const body = await request.json();
   const { prompt, aspectRatio, quality } = body;
+  // Optional exact pixel size ("Resolution" mode); overrides aspect+quality.
+  const width = Number(body.width) > 0 ? Number(body.width) : undefined;
+  const height = Number(body.height) > 0 ? Number(body.height) : undefined;
   // Accept a list of source photos; fall back to the legacy single `image`.
   const sources: string[] = Array.isArray(body.images)
     ? body.images.filter((s: unknown): s is string => typeof s === "string" && s.length > 0)
@@ -39,7 +42,7 @@ export async function POST(request: Request) {
     let geminiError = false;
 
     if (isLive("fal")) {
-      const res = await generateProductPhotos({ imageDataUrls: sources, count, prompt, aspectRatio, quality });
+      const res = await generateProductPhotos({ imageDataUrls: sources, count, prompt, aspectRatio, quality, width, height });
       images = res.images;
       geminiError = res.enhanceError;
     } else {

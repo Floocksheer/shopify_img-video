@@ -76,6 +76,8 @@ function buildImageInput(
   count: number,
   aspect: AspectRatio,
   quality: Quality,
+  /** Exact pixel size (overrides aspect+quality for image_size models). */
+  sizeOverride?: { width: number; height: number },
 ) {
   const input: Record<string, unknown> = {
     prompt,
@@ -97,7 +99,7 @@ function buildImageInput(
   //  - flux/dev + image-to-image + Seedream accept an explicit `image_size`,
   //    where `quality` genuinely raises the pixel count.
   if (model.includes("image-to-image") || model.includes("flux/dev") || model.includes("seedream")) {
-    input.image_size = pixelsFor(aspect, quality);
+    input.image_size = sizeOverride ?? pixelsFor(aspect, quality);
   } else {
     input.aspect_ratio = aspect;
   }
@@ -196,6 +198,10 @@ export async function generateProductPhotos(opts: {
   aspectRatio?: string;
   /** Resolution tier (only affects image_size-capable models). */
   quality?: Quality;
+  /** Exact pixel width; when set with height, overrides aspect+quality. */
+  width?: number;
+  /** Exact pixel height; when set with width, overrides aspect+quality. */
+  height?: number;
 }): Promise<{ images: string[]; enhanceError: boolean }> {
   if (!isLive("fal")) throw new Error("fal.ai is not configured");
   fal.config({ credentials: process.env.FAL_KEY! });
@@ -218,6 +224,13 @@ export async function generateProductPhotos(opts: {
   const model = imageModel();
   const aspect = normalizeAspect(opts.aspectRatio);
   const quality = opts.quality ?? "standard";
+  // Exact pixel size wins over aspect+quality when both dimensions are given
+  // (the "Resolution" mode in the UI); clamped to sane bounds.
+  const clampPx = (n: number) => Math.max(256, Math.min(4096, Math.round(n)));
+  const sizeOverride =
+    opts.width && opts.height
+      ? { width: clampPx(opts.width), height: clampPx(opts.height) }
+      : undefined;
   const count = Math.min(6, Math.max(1, Math.round(opts.count ?? 4)));
   const baseSeed = Math.floor(Math.random() * 1_000_000);
 
@@ -225,7 +238,7 @@ export async function generateProductPhotos(opts: {
     // Only vary framing when more than one image is asked for.
     const framing = count > 1 ? `, ${ANGLE_HINTS[i % ANGLE_HINTS.length]}` : "";
     const prompt = `${base}${framing}${scene}${bg}, ${QUALITY_SUFFIX}, ${PRODUCT_PRESERVE}, ${SINGLE_SUBJECT}`;
-    const input = buildImageInput(model, opts.imageDataUrls, prompt, 1, aspect, quality);
+    const input = buildImageInput(model, opts.imageDataUrls, prompt, 1, aspect, quality, sizeOverride);
     input.seed = baseSeed + i * 1013; // distinct seed → distinct result
     const result = await fal.subscribe(model, { input });
     return (result.data as { images?: { url: string }[] }).images?.[0]?.url;
